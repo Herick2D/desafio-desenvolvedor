@@ -14,10 +14,11 @@ return new class extends Migration
         Schema::create('uploads', function (Blueprint $table) {
             $table->id();
             $table->string('original_filename');
-            $table->string('file_path')->unique();
-            $table->string('file_hash')->unique();
+            $table->string('file_path');
+            $table->string('file_hash')->nullable()->unique();
             $table->unsignedBigInteger('filesize');
-            $table->enum('status', ['pending', 'processing', 'completed', 'failed'])->default('pending');
+            $table->unsignedInteger('total_rows')->default(0);
+            $table->enum('status', ['pending', 'processing', 'completed', 'failed', 'duplicate'])->default('pending');
             $table->text('error_message')->nullable();
             $table->timestamps();
         });
