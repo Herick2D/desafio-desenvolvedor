@@ -15,10 +15,11 @@ return new class extends Migration
             $table->id();
             $table->date('RptDt');
             $table->string('TckrSymb');
-            $table->string('MktNm');
-            $table->string('SctyCtgyNm');
-            $table->string('ISIN');
-            $table->string('CrpnNm');
+
+            $table->string('MktNm')->nullable();
+            $table->string('SctyCtgyNm')->nullable();
+            $table->string('ISIN')->nullable();
+            $table->string('CrpnNm')->nullable();
 
             $table->foreignId('upload_id')->constrained('uploads')->onDelete('cascade');
 

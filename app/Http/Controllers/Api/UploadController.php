@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ProcessFileJob;
 use App\Models\Upload;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class UploadController extends Controller
 {
@@ -26,8 +25,6 @@ class UploadController extends Controller
             'filesize' => $file->getSize(),
             'status' => 'pending',
         ]);
-
-        Log::info('Arquivo recebido e Job despachado.', ['upload_id' => $upload->id, 'filename' => $upload->original_filename]);
 
         ProcessFileJob::dispatch($upload);
 

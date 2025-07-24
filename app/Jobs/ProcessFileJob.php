@@ -2,16 +2,13 @@
 
 namespace App\Jobs;
 
-use App\Imports\InstrumentDataImport;
 use App\Models\Upload;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
 class ProcessFileJob implements ShouldQueue
@@ -24,50 +21,76 @@ class ProcessFileJob implements ShouldQueue
 
     public function handle(): void
     {
-
-        dd('JOB: ENTREI NO JOB');
+        if ($this->upload->status !== 'pending') {
+            return;
+        }
 
         $this->upload->update(['status' => 'processing']);
 
         try {
-            $filePathOnDisk = storage_path('app/' . $this->upload->file_path);
-            $fileHash = hash_file('sha256', $filePathOnDisk);
-
-            $existingUpload = Upload::where('file_hash', $fileHash)->where('id', '!=', $this->upload->id)->first();
-
-            if ($existingUpload) {
-                $this->upload->update([
-                    'status' => 'duplicate',
-                    'file_hash' => $fileHash,
-                    'error_message' => 'Arquivo duplicado. O original foi o upload ID: ' . $existingUpload->id
-                ]);
-                Storage::delete($this->upload->file_path);
-                Log::warning('Upload duplicado detectado.', ['upload_id' => $this->upload->id, 'original_id' => $existingUpload->id]);
-                return;
+            $filePathOnDisk = Storage::path($this->upload->file_path);
+            if (!Storage::exists($this->upload->file_path)) {
+                throw new \Exception('Arquivo não encontrado no disco: ' . $this->upload->file_path);
             }
 
+            $fileHash = hash_file('sha256', $filePathOnDisk);
+            $existingUpload = \App\Models\Upload::where('file_hash', $fileHash)->where('id', '!=', $this->upload->id)->where('status', 'completed')->first();
+
+            if ($existingUpload) {
+                $this->upload->update(['status' => 'duplicate', 'file_hash' => $fileHash, 'error_message' => 'Duplicata do upload ID: ' . $existingUpload->id]);
+                Storage::delete($this->upload->file_path);
+                return;
+            }
             $this->upload->update(['file_hash' => $fileHash]);
 
-            Excel::import(
-                new InstrumentDataImport($this->upload->id),
-                $this->upload->file_path
-            );
+            $fileHandle = fopen($filePathOnDisk, 'r');
+            if ($fileHandle === false) {
+                throw new \Exception('Não foi possível abrir o arquivo para leitura.');
+            }
 
-            $totalRows = \App\Models\InstrumentData::where('upload_id', $this->upload->id)->count();
+            $header = fgetcsv($fileHandle, 0, ';');
+            $dataToInsert = [];
+            $totalRows = 0;
+            $chunkSize = 1000;
+
+            while (($row = fgetcsv($fileHandle, 0, ';')) !== false) {
+                if ($row[0] === 'TRAILER' || empty($row[1])) {
+                    continue;
+                }
+
+                $dataToInsert[] = [
+                    'upload_id'  => $this->upload->id,
+                    'RptDt'      => date('Y-m-d', strtotime($row[0])),
+                    'TckrSymb'   => $row[1],
+                    'MktNm'      => $row[11] ?? null,
+                    'SctyCtgyNm' => $row[14] ?? null,
+                    'ISIN'       => $row[2] ?? null,
+                    'CrpnNm'     => $row[12] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                if (count($dataToInsert) >= $chunkSize) {
+                    \App\Models\InstrumentData::insert($dataToInsert);
+                    $totalRows += count($dataToInsert);
+                    $dataToInsert = [];
+                }
+            }
+
+            if (!empty($dataToInsert)) {
+                \App\Models\InstrumentData::insert($dataToInsert);
+                $totalRows += count($dataToInsert);
+            }
+
+            fclose($fileHandle);
 
             $this->upload->update([
                 'status' => 'completed',
                 'total_rows' => $totalRows,
             ]);
 
-            Log::info("Arquivo processado com sucesso.", ['upload_id' => $this->upload->id]);
-
         } catch (Throwable $e) {
-            $this->upload->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage() . ' no arquivo ' . $e->getFile() . ' na linha ' . $e->getLine()
-            ]);
-            Log::error("Falha ao processar arquivo.", ['upload_id' => $this->upload->id, 'exception' => $e]);
+            $this->upload->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
         }
     }
 }
