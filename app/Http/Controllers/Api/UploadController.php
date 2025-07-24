@@ -17,6 +17,17 @@ class UploadController extends Controller
 
         $file = $request->file('file');
 
+        $fileHash = hash_file('sha256', $file->getRealPath());
+
+        $existingUpload = Upload::where('file_hash', $fileHash)->where('status', 'completed')->first();
+
+        if ($existingUpload) {
+            return response()->json([
+                'message' => 'Este arquivo já foi enviado e processado anteriormente.',
+                'upload' => $existingUpload
+            ], 409);
+        }
+
         $filePath = $file->store('uploads');
 
         $upload = Upload::create([
@@ -24,6 +35,7 @@ class UploadController extends Controller
             'file_path' => $filePath,
             'filesize' => $file->getSize(),
             'status' => 'pending',
+            'file_hash' => $fileHash,
         ]);
 
         ProcessFileJob::dispatch($upload);

@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -32,16 +33,6 @@ class ProcessFileJob implements ShouldQueue
             if (!Storage::exists($this->upload->file_path)) {
                 throw new \Exception('Arquivo não encontrado no disco: ' . $this->upload->file_path);
             }
-
-            $fileHash = hash_file('sha256', $filePathOnDisk);
-            $existingUpload = \App\Models\Upload::where('file_hash', $fileHash)->where('id', '!=', $this->upload->id)->where('status', 'completed')->first();
-
-            if ($existingUpload) {
-                $this->upload->update(['status' => 'duplicate', 'file_hash' => $fileHash, 'error_message' => 'Duplicata do upload ID: ' . $existingUpload->id]);
-                Storage::delete($this->upload->file_path);
-                return;
-            }
-            $this->upload->update(['file_hash' => $fileHash]);
 
             $fileHandle = fopen($filePathOnDisk, 'r');
             if ($fileHandle === false) {
