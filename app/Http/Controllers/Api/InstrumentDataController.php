@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\InstrumentData;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class InstrumentDataController extends Controller
 {
@@ -15,27 +16,32 @@ class InstrumentDataController extends Controller
             'RptDt' => 'sometimes|date_format:Y-m-d',
         ]);
 
-        $query = InstrumentData::query();
+        $cacheKey = 'instrument_data_' . http_build_query($request->query());
+        $cacheDuration = 600;
+        $dataSource = 'CACHE';
 
-        $query->when($request->filled('TckrSymb'), function ($q) use ($request) {
-            return $q->where('TckrSymb', $request->input('TckrSymb'));
+        $data = Cache::remember($cacheKey, $cacheDuration, function () use ($request, &$dataSource, $cacheKey) {
+
+            $dataSource = 'DATABASE';
+            \Log::info('Cache miss! Buscando dados no banco de dados para a chave: ' . $cacheKey);
+
+            $query = InstrumentData::query();
+
+            $query->when($request->filled('TckrSymb'), function ($q) use ($request) {
+                return $q->where('TckrSymb', $request->input('TckrSymb'));
+            });
+
+            $query->when($request->filled('RptDt'), function ($q) use ($request) {
+                return $q->where('RptDt', $request->input('RptDt'));
+            });
+
+            $query->select([
+                'RptDt', 'TckrSymb', 'MktNm', 'SctyCtgyNm', 'ISIN', 'CrpnNm'
+            ]);
+
+            return $query->latest('RptDt')->paginate(20)->toArray();
         });
 
-        $query->when($request->filled('RptDt'), function ($q) use ($request) {
-            return $q->where('RptDt', $request->input('RptDt'));
-        });
-
-        $query->select([
-            'RptDt',
-            'TckrSymb',
-            'MktNm',
-            'SctyCtgyNm',
-            'ISIN',
-            'CrpnNm'
-        ]);
-
-        $data = $query->latest('RptDt')->paginate(20);
-
-        return response()->json($data);
+        return response()->json($data)->header('X-Data-Source', $dataSource);
     }
 }
