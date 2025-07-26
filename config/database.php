@@ -44,14 +44,12 @@ return [
 
         'mongodb' => [
             'driver' => 'mongodb',
-            'host' => env('DB_MONGO_HOST', '127.0.0.1'),
+            'dsn' => env('DB_MONGO_DSN', null),
+            'host' => env('DB_MONGO_HOST', 'localhost'),
             'port' => env('DB_MONGO_PORT', 27017),
             'database' => env('DB_MONGO_DATABASE', 'homestead'),
-            'username' => env('DB_MONGO_USERNAME', 'homestead'),
-            'password' => env('DB_MONGO_PASSWORD', 'secret'),
-            'options' => [
-                'database' => env('DB_MONGO_AUTHENTICATION_DATABASE', 'admin'),
-            ]
+            'username' => env('DB_MONGO_USERNAME', null),
+            'password' => env('DB_MONGO_PASSWORD', null),
         ],
 
         'mysql' => [
