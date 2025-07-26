@@ -1,74 +1,77 @@
 version: '3.8'
 
 services:
-    app:
-        build:
-            context: .
-            dockerfile: Dockerfile
-        container_name: desafio-app-php
-        volumes:
-            - '.:/var/www/html'
-        networks:
-            - app-network
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: desafio-app-php
+    env_file:
+      - .env
+    volumes:
+      - ./:/var/www/html:delegated
+    networks:
+      - app-network
+    depends_on:
+      - mysql
 
-    nginx:
-        image: 'nginx:alpine'
-        container_name: desafio-app-nginx
-        ports:
-            - "80:80"
-        volumes:
-            - '.:/var/www/html'
-            - './docker/nginx/default.conf:/etc/nginx/conf.d/default.conf'
-        networks:
-            - app-network
-        depends_on:
-            - app
-            - mysql
+  nginx:
+    image: nginx:alpine
+    container_name: desafio-app-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - app-network
+    depends_on:
+      - app
+      - mysql
 
-    mysql:
-        image: 'mysql/mysql-server:8.0'
-        container_name: desafio-mysql
-        ports:
-            - "3306:3306"
-        environment:
-            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
-            MYSQL_DATABASE: '${DB_DATABASE}'
-            MYSQL_USER: '${DB_USERNAME}'
-            MYSQL_PASSWORD: '${DB_PASSWORD}'
-            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
-        volumes:
-            - 'db_data_mysql:/var/lib/mysql'
-        networks:
-            - app-network
+  mysql:
+    image: mysql:8.0
+    container_name: desafio-mysql
+    ports:
+      - "3306:3306"
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD}"
+      MYSQL_DATABASE:    "${DB_DATABASE}"
+      MYSQL_USER:        "${DB_USERNAME}"
+      MYSQL_PASSWORD:    "${DB_PASSWORD}"
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    volumes:
+      - db_data_mysql:/var/lib/mysql
+    networks:
+      - app-network
 
-    mongodb:
-        image: 'mongo:latest'
-        container_name: desafio-mongodb
-        ports:
-            - '27017:27017'
-        volumes:
-            - 'db_data_mongodb:/data/db'
-        networks:
-            - app-network
+  redis:
+    image: redis:alpine
+    container_name: desafio-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - db_data_redis:/data
+    networks:
+      - app-network
 
-    redis:
-        image: 'redis:alpine'
-        container_name: desafio-redis
-        ports:
-            - '6379:6379'
-        volumes:
-            - 'db_data_redis:/data'
-        networks:
-            - app-network
+  mongodb:
+    image: mongo:latest
+    container_name: desafio-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - db_data_mongodb:/data/db
+    networks:
+      - app-network
 
 networks:
-    app-network:
-        driver: bridge
+  app-network:
+    driver: bridge
 
 volumes:
-    db_data_mysql:
-        driver: local
-    db_data_mongodb:
-        driver: local
-    db_data_redis:
-        driver: local
+  db_data_mysql:
+  db_data_redis:
+  db_data_mongodb:
