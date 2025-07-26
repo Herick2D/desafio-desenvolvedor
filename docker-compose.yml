@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: desafio-app-php
-    env_file:
-      - .env
+    
     volumes:
       - ./:/var/www/html:delegated
     networks:
@@ -34,13 +32,12 @@ services:
     container_name: desafio-mysql
     ports:
       - "3306:3306"
-    env_file:
-      - .env
+
     environment:
-      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD}"
-      MYSQL_DATABASE:    "${DB_DATABASE}"
-      MYSQL_USER:        "${DB_USERNAME}"
-      MYSQL_PASSWORD:    "${DB_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE:    desafio_dev
+      MYSQL_USER:        sail
+      MYSQL_PASSWORD:    password
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
     volumes:
       - db_data_mysql:/var/lib/mysql
